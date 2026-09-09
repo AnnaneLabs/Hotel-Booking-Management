@@ -1,63 +1,98 @@
-import util.*;
+import exception.*;
+import model.*;
+import repository.*;
+import repository.impl.*;
+import service.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Optional;
 
 public class Main {
     public static void main(String[] args) {
 
-        // --- Test DateUtils.parseDate ---
-        Optional<LocalDate> goodDate = DateUtils.parseDate("10/09/2026");
-        System.out.println("Parsed good date: " + goodDate);
+        // --- Setup ---
+        UserRepository userRepository = new InMemoryUserRepository();
+        RoomRepository roomRepository = new InMemoryRoomRepository();
 
-        Optional<LocalDate> badDate = DateUtils.parseDate("not-a-date");
-        System.out.println("Parsed bad date (should be empty): " + badDate);
+        AuthService authService = new AuthService(userRepository);
+        RoomService roomService = new RoomService(roomRepository);
 
-        // --- Test DateUtils.numberOfNights ---
-        LocalDate checkIn = LocalDate.of(2026, 9, 10);
-        LocalDate checkOut = LocalDate.of(2026, 9, 13);
-        long nights = DateUtils.numberOfNights(checkIn, checkOut);
-        System.out.println("Nights (expect 3): " + nights);
+        // Seed a room
+        Room room102 = new Room("102", RoomType.DOUBLE, 2,
+                new BigDecimal("500.00"), RoomStatus.AVAILABLE);
+        roomService.addRoom(room102);
 
-        // --- Test DateUtils.datesOverlap ---
-        LocalDate existingIn = LocalDate.of(2026, 9, 10);
-        LocalDate existingOut = LocalDate.of(2026, 9, 15);
+        Room room301 = new Room("301", RoomType.SUITE, 4,
+                new BigDecimal("1200.00"), RoomStatus.MAINTENANCE);
+        roomService.addRoom(room301);
 
-        LocalDate newIn1 = LocalDate.of(2026, 9, 12);
-        LocalDate newOut1 = LocalDate.of(2026, 9, 17);
-        System.out.println("Overlap case (expect true): " +
-                DateUtils.datesOverlap(existingIn, existingOut, newIn1, newOut1));
+        // --- Test register (happy path) ---
+        User alice = authService.register("Alice Dupont", "alice@example.com",
+                "0600000000", "alice123");
+        System.out.println("Registered: " + alice);
 
-        LocalDate newIn2 = LocalDate.of(2026, 9, 15);
-        LocalDate newOut2 = LocalDate.of(2026, 9, 20);
-        System.out.println("No-overlap case (expect false): " +
-                DateUtils.datesOverlap(existingIn, existingOut, newIn2, newOut2));
+        // --- Test register with duplicate email (should throw) ---
+        try {
+            authService.register("Fake Alice", "alice@example.com", "0611111111", "whatever");
+            System.out.println("ERROR: should have thrown EmailAlreadyExistsException");
+        } catch (EmailAlreadyExistsException e) {
+            System.out.println("Correctly caught: " + e.getMessage());
+        }
 
-        // --- Test MoneyUtils.calculateTotal ---
-        BigDecimal total = MoneyUtils.calculateTotal(3, new BigDecimal("500.00"));
-        System.out.println("Total (expect 1500.00): " + total);
+        // --- Test login with wrong password (should throw) ---
+        try {
+            authService.login("alice@example.com", "wrongpassword");
+            System.out.println("ERROR: should have thrown InvalidCredentialsException");
+        } catch (InvalidCredentialsException e) {
+            System.out.println("Correctly caught: " + e.getMessage());
+        }
 
-        // --- Test ValidationUtils ---
-        System.out.println("isValidEmail alice@example.com (expect true): " +
-                ValidationUtils.isValidEmail("alice@example.com"));
-        System.out.println("isValidEmail bademail (expect false): " +
-                ValidationUtils.isValidEmail("bademail"));
-        System.out.println("isValidPassword 'alice123' (expect true): " +
-                ValidationUtils.isValidPassword("alice123"));
-        System.out.println("isValidPassword '123' (expect false): " +
-                ValidationUtils.isValidPassword("123"));
-        System.out.println("isNotBlank '' (expect false): " +
-                ValidationUtils.isNotBlank(""));
+        // --- Test login with nonexistent email (should throw) ---
+        try {
+            authService.login("nobody@example.com", "whatever");
+            System.out.println("ERROR: should have thrown UserNotFoundException");
+        } catch (UserNotFoundException e) {
+            System.out.println("Correctly caught: " + e.getMessage());
+        }
 
-        // --- Test InputUtils (interactive — comment out if you don't want to type) ---
-        // String name = InputUtils.readNonBlankString("Enter your name: ");
-        // System.out.println("You entered: " + name);
-        //
-        // int age = InputUtils.readInt("Enter your age: ");
-        // System.out.println("You entered: " + age);
-        //
-        // LocalDate date = InputUtils.readDate("Enter a date (dd/MM/yyyy): ");
-        // System.out.println("You entered: " + date);
+        // --- Test login (happy path) ---
+        User loggedIn = authService.login("alice@example.com", "alice123");
+        System.out.println("Logged in as: " + loggedIn.getFullName());
+        System.out.println("isLoggedIn: " + authService.isLoggedIn());
+
+        // --- Test updateProfile ---
+        authService.updateProfile("Alice D.", "alice@example.com", "0699999999");
+        System.out.println("After update: " + authService.getCurrentUser());
+
+        // --- Test changePassword with wrong old password (should throw) ---
+        try {
+            authService.changePassword("wrongold", "newpass123");
+            System.out.println("ERROR: should have thrown InvalidCredentialsException");
+        } catch (InvalidCredentialsException e) {
+            System.out.println("Correctly caught: " + e.getMessage());
+        }
+
+        // --- Test changePassword (happy path) ---
+        authService.changePassword("alice123", "newpass123");
+        System.out.println("Password changed successfully.");
+
+        // --- Test logout ---
+        authService.logout();
+        System.out.println("isLoggedIn after logout: " + authService.isLoggedIn());
+
+        // --- Test RoomService.findRoomByNumber (happy path) ---
+        Room found = roomService.findRoomByNumber("102");
+        System.out.println("Found room: " + found);
+
+        // --- Test RoomService.findRoomByNumber (not found, should throw) ---
+        try {
+            roomService.findRoomByNumber("999");
+            System.out.println("ERROR: should have thrown RoomNotFoundException");
+        } catch (RoomNotFoundException e) {
+            System.out.println("Correctly caught: " + e.getMessage());
+        }
+
+        // --- Test getRoomsByStatus ---
+        System.out.println("Available rooms: " + roomService.getRoomsByStatus(RoomStatus.AVAILABLE));
+        System.out.println("Maintenance rooms: " + roomService.getRoomsByStatus(RoomStatus.MAINTENANCE));
     }
 }
