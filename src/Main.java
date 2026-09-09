@@ -1,49 +1,63 @@
-import model.*;
-import repository.*;
-import repository.impl.*;
+import util.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Optional;
 
 public class Main {
     public static void main(String[] args) {
 
-        // --- Test Room ---
-        RoomRepository roomRepo = new InMemoryRoomRepository();
+        // --- Test DateUtils.parseDate ---
+        Optional<LocalDate> goodDate = DateUtils.parseDate("10/09/2026");
+        System.out.println("Parsed good date: " + goodDate);
 
-        Room room102 = new Room("102", RoomType.DOUBLE, 2,
-                new BigDecimal("500.00"), RoomStatus.AVAILABLE);
-        roomRepo.save(room102);
+        Optional<LocalDate> badDate = DateUtils.parseDate("not-a-date");
+        System.out.println("Parsed bad date (should be empty): " + badDate);
 
-        Optional<Room> found = roomRepo.findByRoomNumber("102");
-        System.out.println("Found room: " + found.orElse(null));
+        // --- Test DateUtils.numberOfNights ---
+        LocalDate checkIn = LocalDate.of(2026, 9, 10);
+        LocalDate checkOut = LocalDate.of(2026, 9, 13);
+        long nights = DateUtils.numberOfNights(checkIn, checkOut);
+        System.out.println("Nights (expect 3): " + nights);
 
-        Optional<Room> notFound = roomRepo.findByRoomNumber("999");
-        System.out.println("Not found room (should be empty): " + notFound);
+        // --- Test DateUtils.datesOverlap ---
+        LocalDate existingIn = LocalDate.of(2026, 9, 10);
+        LocalDate existingOut = LocalDate.of(2026, 9, 15);
 
-        System.out.println("All rooms: " + roomRepo.findAll());
+        LocalDate newIn1 = LocalDate.of(2026, 9, 12);
+        LocalDate newOut1 = LocalDate.of(2026, 9, 17);
+        System.out.println("Overlap case (expect true): " +
+                DateUtils.datesOverlap(existingIn, existingOut, newIn1, newOut1));
 
-        // --- Test User ---
-        UserRepository userRepo = new InMemoryUserRepository();
+        LocalDate newIn2 = LocalDate.of(2026, 9, 15);
+        LocalDate newOut2 = LocalDate.of(2026, 9, 20);
+        System.out.println("No-overlap case (expect false): " +
+                DateUtils.datesOverlap(existingIn, existingOut, newIn2, newOut2));
 
-        User alice = new User("Alice Dupont", "alice@example.com", "0600000000", "alice123");
-        userRepo.save(alice);
+        // --- Test MoneyUtils.calculateTotal ---
+        BigDecimal total = MoneyUtils.calculateTotal(3, new BigDecimal("500.00"));
+        System.out.println("Total (expect 1500.00): " + total);
 
-        System.out.println("Find by email: " + userRepo.findByEmail("alice@example.com"));
-        System.out.println("Exists by email: " + userRepo.existsByEmail("alice@example.com"));
-        System.out.println("Exists fake email: " + userRepo.existsByEmail("nope@example.com"));
+        // --- Test ValidationUtils ---
+        System.out.println("isValidEmail alice@example.com (expect true): " +
+                ValidationUtils.isValidEmail("alice@example.com"));
+        System.out.println("isValidEmail bademail (expect false): " +
+                ValidationUtils.isValidEmail("bademail"));
+        System.out.println("isValidPassword 'alice123' (expect true): " +
+                ValidationUtils.isValidPassword("alice123"));
+        System.out.println("isValidPassword '123' (expect false): " +
+                ValidationUtils.isValidPassword("123"));
+        System.out.println("isNotBlank '' (expect false): " +
+                ValidationUtils.isNotBlank(""));
 
-        // --- Test Reservation ---
-        ReservationRepository reservationRepo = new InMemoryReservationRepository();
-
-        Reservation res = new Reservation(alice.getId(), "102",
-                java.time.LocalDate.of(2026, 9, 10),
-                java.time.LocalDate.of(2026, 9, 13),
-                2, 3, new BigDecimal("1500.00"));
-        res.setReservationCode("RES-2026-0001");
-        reservationRepo.save(res);
-
-        System.out.println("Find by code: " + reservationRepo.findByCode("RES-2026-0001"));
-        System.out.println("Find by user: " + reservationRepo.findByUserId(alice.getId()));
+        // --- Test InputUtils (interactive — comment out if you don't want to type) ---
+        // String name = InputUtils.readNonBlankString("Enter your name: ");
+        // System.out.println("You entered: " + name);
+        //
+        // int age = InputUtils.readInt("Enter your age: ");
+        // System.out.println("You entered: " + age);
+        //
+        // LocalDate date = InputUtils.readDate("Enter a date (dd/MM/yyyy): ");
+        // System.out.println("You entered: " + date);
     }
 }
