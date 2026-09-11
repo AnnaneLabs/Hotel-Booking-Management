@@ -7,6 +7,8 @@ import model.User;
 import repository.UserRepository;
 
 import java.util.Optional;
+import util.ValidationUtils;
+
 
 public class AuthService {
 
@@ -19,6 +21,9 @@ public class AuthService {
     public User register(String fullName, String email, String phone, String password) {
         if (userRepository.existsByEmail(email)) {
             throw new EmailAlreadyExistsException("Email already exists.");
+        }
+        if (!ValidationUtils.isValidPassword(password)) {
+            throw new InvalidCredentialsException("Password must be at least 6 characters.");
         }
         User user = new User(fullName, email, phone, password);
         userRepository.save(user);
